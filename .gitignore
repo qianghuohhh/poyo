@@ -159,3 +159,6 @@ smux*
 
 data/processed
 data/raw
+processed/
+slurm_logs/
+data/data/
