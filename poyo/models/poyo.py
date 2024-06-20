@@ -17,7 +17,11 @@ from poyo.utils import (
     create_start_end_unit_tokens,
     create_linspace_latent_tokens,
 )
+<<<<<<< HEAD
 from poyo.taxonomy import Task, REACHING, OutputType
+=======
+from poyo.taxonomy import Task, OutputType
+>>>>>>> 63d8b6ce3fe376a4ea1d2e4cb6e36cf85ebb2c7b
 
 
 class POYO(nn.Module):
@@ -61,6 +65,7 @@ class POYO(nn.Module):
         self.dim = dim
         self.using_memory_efficient_attn = self.perceiver_io.using_memory_efficient_attn
 
+<<<<<<< HEAD
         self.unit_tokenizer_var = 1
         self.unit_tokenizer_map = collections.defaultdict(int)
         self.session_tokenizer_var = 1
@@ -69,6 +74,8 @@ class POYO(nn.Module):
         self.session_emb.initialize_vocab([])
         
 
+=======
+>>>>>>> 63d8b6ce3fe376a4ea1d2e4cb6e36cf85ebb2c7b
     def forward(
         self,
         *,
@@ -98,7 +105,10 @@ class POYO(nn.Module):
 
         # input
         inputs = self.unit_emb(spike_unit_index) + self.spike_type_emb(spike_type)
+<<<<<<< HEAD
         #inputs = spike_unit_index+spike_type#l
+=======
+>>>>>>> 63d8b6ce3fe376a4ea1d2e4cb6e36cf85ebb2c7b
 
         # latents
         latents = self.latent_emb(latent_index)
@@ -141,6 +151,7 @@ class POYO(nn.Module):
         if self.using_memory_efficient_attn:
             batch_size = output_batch_index.max().item() + 1
             for i in range(batch_size):
+<<<<<<< HEAD
                 output.append(output_pred[output_batch_index == i])#l
         else:
             batch_size = output_latents.shape[0]
@@ -166,6 +177,16 @@ class POYO(nn.Module):
             self.session_emb.extend_vocab([self.session_tokenizer_map[session_id]])
         return self.session_tokenizer_map[session_id]
 
+=======
+                output.append(output[output_batch_index == i])
+        else:
+            batch_size = output_latents.shape[0]
+            for i in range(batch_size):
+                output.append(output[i, output_mask[i]])
+
+        return output, loss
+
+>>>>>>> 63d8b6ce3fe376a4ea1d2e4cb6e36cf85ebb2c7b
 
 class POYOTokenizer:
     r"""Tokenizer used to tokenize Data for the POYO1 model.
@@ -243,6 +264,7 @@ class POYOTokenizer:
         output_subtask_index = data.cursor.subtask_index
 
         # compute weights
+<<<<<<< HEAD
 
         if not data.config:#l
             data.config["reach_decoder"]={}
@@ -250,6 +272,11 @@ class POYOTokenizer:
         subtask_weights = data.config["reach_decoder"].get("subtask_weights", {})
         #num_subtasks = Task.REACHING.max_value()
         num_subtasks = REACHING.max_value()+1 #l
+=======
+        weight = data.config["reach_decoder"].get("weight", 1.0)
+        subtask_weights = data.config["reach_decoder"].get("subtask_weights", {})
+        num_subtasks = Task.REACHING.max_value()
+>>>>>>> 63d8b6ce3fe376a4ea1d2e4cb6e36cf85ebb2c7b
         subtask_weight_map = np.ones(num_subtasks, dtype=np.float32)
         for subtask, subtask_weight in subtask_weights.items():
             subtask_weight_map[Task.from_string(subtask).value] = subtask_weight
@@ -272,7 +299,10 @@ class POYOTokenizer:
                 "output_timestamps": pad(output_timestamps),
                 "output_values": chain(output_values),
                 "output_weights": chain(output_weights),
+<<<<<<< HEAD
                 "output_mask": track_mask(output_timestamps)
+=======
+>>>>>>> 63d8b6ce3fe376a4ea1d2e4cb6e36cf85ebb2c7b
             }
         else:
             # Chaining

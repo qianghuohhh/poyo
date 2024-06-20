@@ -49,11 +49,15 @@ class StringIntEnum(Enum, metaclass=NestedEnumType):
         nested_string = string.split(".", maxsplit=1)
         if len(nested_string) > 1:
             parent = cls.from_string(nested_string[0])
+<<<<<<< HEAD
             try:
                 return parent._parent_cls.from_string(nested_string[1])
             except:
                 mapping = {name.upper(): member for name, member in cls.__members__.items()}
                 return mapping["UNKNOWN"]
+=======
+            return parent._parent_cls.from_string(nested_string[1])
+>>>>>>> 63d8b6ce3fe376a4ea1d2e4cb6e36cf85ebb2c7b
         else:
             # normalize string by replacing spaces with underscores and converting
             # to upper case
