@@ -191,6 +191,8 @@ def main():
             # extract data about trial structure
             trials = extract_trials(nwbfile, task)
 
+            print(spikes.unit_index)
+
             # extract behavior
             cursor = extract_behavior(nwbfile, trials, task)
 

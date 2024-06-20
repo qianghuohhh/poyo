@@ -49,7 +49,11 @@ class StringIntEnum(Enum, metaclass=NestedEnumType):
         nested_string = string.split(".", maxsplit=1)
         if len(nested_string) > 1:
             parent = cls.from_string(nested_string[0])
-            return parent._parent_cls.from_string(nested_string[1])
+            try:
+                return parent._parent_cls.from_string(nested_string[1])
+            except:
+                mapping = {name.upper(): member for name, member in cls.__members__.items()}
+                return mapping["UNKNOWN"]
         else:
             # normalize string by replacing spaces with underscores and converting
             # to upper case
@@ -60,6 +64,9 @@ class StringIntEnum(Enum, metaclass=NestedEnumType):
             if normalized_string in mapping:
                 return mapping[normalized_string]
             # if there is no match raise an error
+
+            return mapping["UNKNOWN"]
+
             raise ValueError(
                 f"{normalized_string} does not exist in {cls.__name__}, "
                 "consider adding it to the enum."

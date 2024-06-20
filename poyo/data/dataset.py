@@ -134,7 +134,6 @@ class Dataset(torch.utils.data.Dataset):
                         "description.yaml file. Try running the appropriate snakemake "
                         "pipeline to generate the msgpack (mpk) file instead."
                     )
-
                 # Get a list of all the potentially chunks in this dataset.
                 sortsets = description["sortsets"]
                 all_sortset_ids = [x["id"] for x in sortsets]

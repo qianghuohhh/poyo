@@ -7,6 +7,7 @@ from .subject import (
 
 from .task import (
     Task,
+    REACHING,
 )
 
 from .macaque import Macaque
