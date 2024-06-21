@@ -8,6 +8,10 @@ from torch import nn
 import torch.nn.functional as F
 from torch.nn.parameter import UninitializedParameter
 
+if torch.cuda.is_available():
+        device = torch.device("cuda")
+else:
+        device = torch.device("cpu")
 
 class InfiniteVocabEmbedding(nn.Module):
     """Embedding layer with a vocabulary that can be extended. Vocabulary is saved along
@@ -384,7 +388,7 @@ class InfiniteVocabEmbedding(nn.Module):
     def forward(self, input):
         if self.is_lazy():
             raise ValueError("No vocabulary was initialized. Use initialize_vocab()")
-        return F.embedding(input, self.weight, self.padding_idx)
+        return F.embedding(input, self.weight.to(device), self.padding_idx)
 
     def extra_repr(self) -> str:
         return "embedding_dim={}, num_embeddings={}".format(

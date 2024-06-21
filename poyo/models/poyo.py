@@ -5,7 +5,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 from torchtyping import TensorType
-
+from sklearn.metrics import r2_score
 from poyo.nn import (
     Embedding,
     InfiniteVocabEmbedding,
@@ -17,12 +17,12 @@ from poyo.utils import (
     create_start_end_unit_tokens,
     create_linspace_latent_tokens,
 )
-<<<<<<< HEAD
 from poyo.taxonomy import Task, REACHING, OutputType
-=======
-from poyo.taxonomy import Task, OutputType
->>>>>>> 63d8b6ce3fe376a4ea1d2e4cb6e36cf85ebb2c7b
 
+if torch.cuda.is_available():
+        device = torch.device("cuda")
+else:
+        device = torch.device("cpu")
 
 class POYO(nn.Module):
     def __init__(
@@ -65,7 +65,6 @@ class POYO(nn.Module):
         self.dim = dim
         self.using_memory_efficient_attn = self.perceiver_io.using_memory_efficient_attn
 
-<<<<<<< HEAD
         self.unit_tokenizer_var = 1
         self.unit_tokenizer_map = collections.defaultdict(int)
         self.session_tokenizer_var = 1
@@ -74,8 +73,6 @@ class POYO(nn.Module):
         self.session_emb.initialize_vocab([])
         
 
-=======
->>>>>>> 63d8b6ce3fe376a4ea1d2e4cb6e36cf85ebb2c7b
     def forward(
         self,
         *,
@@ -104,11 +101,9 @@ class POYO(nn.Module):
     ]:
 
         # input
+
         inputs = self.unit_emb(spike_unit_index) + self.spike_type_emb(spike_type)
-<<<<<<< HEAD
         #inputs = spike_unit_index+spike_type#l
-=======
->>>>>>> 63d8b6ce3fe376a4ea1d2e4cb6e36cf85ebb2c7b
 
         # latents
         latents = self.latent_emb(latent_index)
@@ -137,6 +132,7 @@ class POYO(nn.Module):
             loss = compute_loss_or_metric(
                 "mse", OutputType.CONTINUOUS, output_pred, output_values, output_weights
             )
+            R2 = r2_score(output_values.float().detach().cpu(), output_pred.float().detach().cpu(), multioutput='raw_values')
         else:
             assert output_mask is not None
             loss = compute_loss_or_metric(
@@ -146,19 +142,19 @@ class POYO(nn.Module):
                 output_values,
                 output_weights,
             )
+            R2 = r2_score(output_values.float().detach().cpu(), output_pred[output_mask].float().detach().cpu(), multioutput='raw_values')
 
         output = []
         if self.using_memory_efficient_attn:
             batch_size = output_batch_index.max().item() + 1
             for i in range(batch_size):
-<<<<<<< HEAD
                 output.append(output_pred[output_batch_index == i])#l
         else:
             batch_size = output_latents.shape[0]
             for i in range(batch_size):
                 output.append(output_pred[i, output_mask[i]])#l
 
-        return output, loss
+        return output, loss, R2
 
     def unit_tokenizer(self,unit_ids):
         initialize_vocab=[]
@@ -177,16 +173,6 @@ class POYO(nn.Module):
             self.session_emb.extend_vocab([self.session_tokenizer_map[session_id]])
         return self.session_tokenizer_map[session_id]
 
-=======
-                output.append(output[output_batch_index == i])
-        else:
-            batch_size = output_latents.shape[0]
-            for i in range(batch_size):
-                output.append(output[i, output_mask[i]])
-
-        return output, loss
-
->>>>>>> 63d8b6ce3fe376a4ea1d2e4cb6e36cf85ebb2c7b
 
 class POYOTokenizer:
     r"""Tokenizer used to tokenize Data for the POYO1 model.
@@ -264,7 +250,6 @@ class POYOTokenizer:
         output_subtask_index = data.cursor.subtask_index
 
         # compute weights
-<<<<<<< HEAD
 
         if not data.config:#l
             data.config["reach_decoder"]={}
@@ -272,11 +257,6 @@ class POYOTokenizer:
         subtask_weights = data.config["reach_decoder"].get("subtask_weights", {})
         #num_subtasks = Task.REACHING.max_value()
         num_subtasks = REACHING.max_value()+1 #l
-=======
-        weight = data.config["reach_decoder"].get("weight", 1.0)
-        subtask_weights = data.config["reach_decoder"].get("subtask_weights", {})
-        num_subtasks = Task.REACHING.max_value()
->>>>>>> 63d8b6ce3fe376a4ea1d2e4cb6e36cf85ebb2c7b
         subtask_weight_map = np.ones(num_subtasks, dtype=np.float32)
         for subtask, subtask_weight in subtask_weights.items():
             subtask_weight_map[Task.from_string(subtask).value] = subtask_weight
@@ -299,10 +279,7 @@ class POYOTokenizer:
                 "output_timestamps": pad(output_timestamps),
                 "output_values": chain(output_values),
                 "output_weights": chain(output_weights),
-<<<<<<< HEAD
                 "output_mask": track_mask(output_timestamps)
-=======
->>>>>>> 63d8b6ce3fe376a4ea1d2e4cb6e36cf85ebb2c7b
             }
         else:
             # Chaining
