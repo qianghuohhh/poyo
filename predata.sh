@@ -1,9 +1,8 @@
 #!/bin/bash
 #SBATCH -J ndt2_lu_try2
 #SBATCH -o slurm_logs/%j.out
-#SBATCH -p q_ai4
+#SBATCH -p q_cn
 #SBATCH -n 1
-#SBATCH --gres=gpu:1
 
 export http_proxy=10.11.100.5:3128 
 export HTTP_PROXY=10.11.100.5:3128

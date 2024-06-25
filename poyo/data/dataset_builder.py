@@ -456,7 +456,6 @@ class SessionContextManager:
         self.check_no_mask_overlap()
 
         path = os.path.join(self.builder.processed_folder_path, f"{self.session.id}.h5")
-
         with h5py.File(path, "w") as file:
             self.data.to_hdf5(file)
 

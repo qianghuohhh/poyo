@@ -23,7 +23,6 @@ if torch.cuda.is_available():
         device = torch.device("cuda")
 else:
         device = torch.device("cpu")
-
 class POYO(nn.Module):
     def __init__(
         self,
@@ -130,7 +129,7 @@ class POYO(nn.Module):
 
         if self.using_memory_efficient_attn:
             loss = compute_loss_or_metric(
-                "mse", OutputType.CONTINUOUS, output_pred, output_values, output_weights
+                "mse", OutputType.CONTINUOUS, output_pred, output_values.float(), output_weights
             )
             R2 = r2_score(output_values.float().detach().cpu(), output_pred.float().detach().cpu(), multioutput='raw_values')
         else:
@@ -139,7 +138,7 @@ class POYO(nn.Module):
                 "mse",
                 OutputType.CONTINUOUS,
                 output_pred[output_mask],
-                output_values,
+                output_values.float(),
                 output_weights,
             )
             R2 = r2_score(output_values.float().detach().cpu(), output_pred[output_mask].float().detach().cpu(), multioutput='raw_values')

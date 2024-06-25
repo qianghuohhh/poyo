@@ -1,156 +1,99 @@
 import os
 import h5py
 import torch
+from pathlib import Path
 import collections
 from poyo.models import POYO, POYOTokenizer
 from poyo.data import Data,Dataset,collate
+from dataloader import POYODataLoader
 import torch_optimizer as optim
-from torch.utils.data import DataLoader
-from poyo.data.sampler import RandomFixedWindowSampler,SequentialFixedWindowSampler
 
+import pytorch_lightning as pl
+from pytorch_lightning.loggers import WandbLogger
+from pytorch_lightning.strategies import DDPStrategy
+from pytorch_lightning.utilities.rank_zero import rank_zero_only
+
+from model import POYOInterface
+from poyo.data.sampler import RandomFixedWindowSampler,SequentialFixedWindowSampler
 
 if torch.cuda.is_available():
         device = torch.device("cuda")
 else:
         device = torch.device("cpu")
-torch.set_default_tensor_type(torch.DoubleTensor)
-model=POYO(use_memory_efficient_attn=True).to(device)
-tokenizer=POYOTokenizer(
-        model.unit_tokenizer,
-        model.session_tokenizer,
-        latent_step=64,
-        num_latents_per_step=64,
-        using_memory_efficient_attn=True
-        )
-dataset=Dataset(
-        root='/GPFS/yuezhifeng_lab_permanent/lutong/poyo/',
-        split='train',
-        include=[{
-                "selection":[{
-                        "dandiset":'processed/'
-                }],
-        }],
-        transform=tokenizer,
-)
-sampler=RandomFixedWindowSampler(
-        interval_dict=dataset.get_sampling_intervals(),
-        window_length=5.0,
-        generator=None,
-)
-dataloader=DataLoader(
-        dataset=dataset,
-        batch_size=16,
-        sampler=sampler,
-        collate_fn=collate
-)
-val_tokenizer=POYOTokenizer(
-        model.unit_tokenizer,
-        model.session_tokenizer,
-        latent_step=64,
-        num_latents_per_step=64,
-        using_memory_efficient_attn=True,
-        eval=False
-        )
-val_dataset=Dataset(
-        root='/GPFS/yuezhifeng_lab_permanent/lutong/poyo/',
-        split='valid',
-        include=[{
-                "selection":[{
-                        "dandiset":'processed/'
-                }],
-        }],
-        transform=val_tokenizer,
-)
-val_dataloader=DataLoader(
-        dataset=val_dataset,
-        batch_size=16,
-        sampler=sampler,
-        collate_fn=collate
-)
-optimizer = optim.Lamb(model.parameters(), lr=1e-4)
-for i in range(30):
-        '''for data in dataloader:
-                optimizer.zero_grad()
-                loss=model(
-                        spike_unit_index=data["spike_unit_index"].to(device),
-                        spike_timestamps=data["spike_timestamps"].to(device),
-                        spike_type=data["spike_type"].to(device),
-                        #input_mask=data["input_mask"],
-                        input_seqlen=data["input_seqlen"].to(device),
-                        # latent sequence
-                        latent_index=data["latent_index"].to(device),
-                        latent_timestamps=data["latent_timestamps"].to(device),
-                        latent_seqlen=data["latent_seqlen"].to(device),
-                        # output sequence
-                        session_index=data["session_index"].to(device),
-                        output_seqlen=data["output_seqlen"].to(device),
-                        output_timestamps=data["output_timestamps"].to(device),
-                        output_batch_index=data["output_batch_index"].to(device),
-                        output_values=data["output_values"].to(device),
-                        output_weights=data["output_weights"].to(device)
-                )
-                output,loss,R2=model(
-                        spike_unit_index=data["spike_unit_index"].to(device),
-                        spike_timestamps=data["spike_timestamps"].to(device),
-                        spike_type=data["spike_type"].to(device),
-                        input_mask=data["input_mask"].to(device),
-                        # latent sequence
-                        latent_index=data["latent_index"].to(device),
-                        latent_timestamps=data["latent_timestamps"].to(device),
-                        # output sequence
-                        session_index=data["session_index"].to(device),
-                        output_timestamps=data["output_timestamps"].to(device),
-                        output_values=data["output_values"].to(device),
-                        output_weights=data["output_weights"].to(device),
-                        output_mask=data["output_mask"].to(device)
-                )
-                loss.backward()
-                optimizer.step()
-                torch.cuda.empty_cache()'''
-        with torch.no_grad():
-                index=0
-                loss_sum=0
-                R2_sum=0
-                for data in val_dataloader:
-                        output,loss,R2=model(
-                                spike_unit_index=data["spike_unit_index"].to(device),
-                                spike_timestamps=data["spike_timestamps"].to(device),
-                                spike_type=data["spike_type"].to(device),
-                                #input_mask=data["input_mask"],
-                                input_seqlen=data["input_seqlen"].to(device),
-                                # latent sequence
-                                latent_index=data["latent_index"].to(device),
-                                latent_timestamps=data["latent_timestamps"].to(device),
-                                latent_seqlen=data["latent_seqlen"].to(device),
-                                # output sequence
-                                session_index=data["session_index"].to(device),
-                                output_seqlen=data["output_seqlen"].to(device),
-                                output_timestamps=data["output_timestamps"].to(device),
-                                output_batch_index=data["output_batch_index"].to(device),
-                                output_values=data["output_values"].to(device),
-                                output_weights=data["output_weights"].to(device)
-                        )
-                        '''output,loss,R2=model(
-                                spike_unit_index=data["spike_unit_index"].to(device),
-                                spike_timestamps=data["spike_timestamps"].to(device),
-                                spike_type=data["spike_type"].to(device),
-                                input_mask=data["input_mask"].to(device),
-                                # latent sequence
-                                latent_index=data["latent_index"].to(device),
-                                latent_timestamps=data["latent_timestamps"].to(device),
-                                # output sequence
-                                session_index=data["session_index"].to(device),
-                                output_timestamps=data["output_timestamps"].to(device),
-                                output_values=data["output_values"].to(device),
-                                output_weights=data["output_weights"].to(device),
-                                output_mask=data["output_mask"].to(device)
-                        )'''
-                        loss_sum+=loss
-                        R2_sum+=R2
-                        index+=1
-                print("loss:"+str(loss_sum/index))
-                print("R2:"+str(R2_sum/index))
-                        
+is_distributed = torch.cuda.device_count() > 1
+nodes=torch.cuda.device_count()
+default_strat = 'auto' if pl.__version__.startswith('2.0') else 'auto'
+""" torch.backends.cuda.enable_mem_efficient_sdp(False)
+torch.backends.cuda.enable_flash_sdp(False)
+torch.backends.cuda.enable_math_sdp(True) """
 
+os.environ["WANDB_API_KEY"] = 'eb9f8bffb20b4fbb7550ae857caad45673e6ebb8'
+pl.seed_everything(seed=0)
+wandb_project="poyo"
+epochs=30000
+max_steps=1000000000
+log_every_n_steps=1
+half_precision=False
+default_root_dir=Path("./data/runs").resolve()
+gradient_clip_val=1.0
+#accumulate_batches=2
+profiler=""
+overfit_batches=False
+
+wandb_logger = WandbLogger(
+        project=wandb_project,
+        save_dir=default_root_dir,
+    )
+
+model=POYOInterface(
+        dim=128,
+        dim_head=64,
+        num_latents=512,
+        depth=2,
+        cross_heads=1,
+        self_heads=8,
+        ffn_dropout=0.2,
+        lin_dropout=0.4,
+        atn_dropout=0.0,
+        emb_init_scale=0.02,
+        use_memory_efficient_attn=True,
+).to(device)
+
+data_module = POYODataLoader(
+        root = '/GPFS/yuezhifeng_lab_permanent/lutong/poyo/',
+        include = [{
+                "selection":[{
+                        "dandiset":'processed/',
+                        "session":"c_20131028_random_target_reaching"
+                }],
+        }],
+        unit_tokenizer = model.model.unit_tokenizer,
+        session_tokenizer = model.model.session_tokenizer,
+        latent_step = 512,
+        num_latents_per_step = 512
+)
+
+trainer = pl.Trainer(
+        logger=wandb_logger,
+        max_epochs=epochs,
+        max_steps=max_steps,
+        accelerator='gpu' if torch.cuda.is_available() else 'cpu',
+        devices=torch.cuda.device_count() if torch.cuda.is_available() else None,
+        num_nodes=nodes,
+        check_val_every_n_epoch=1,
+        log_every_n_steps=log_every_n_steps,
+        # val_check_interval=cfg.train.val_check_interval,
+        #callbacks=callbacks,
+        default_root_dir=default_root_dir,
+        # track_grad_norm=2 if cfg.train.log_grad else -1, # this is quite cluttered, but probably better that way. See https://github.com/Lightning-AI/lightning/issues/1462#issuecomment-1190253742 for patch if needed, though.
+        precision=16 if half_precision else 32,
+        strategy=DDPStrategy(find_unused_parameters=False) if is_distributed else default_strat,
+        gradient_clip_val=gradient_clip_val,
+        #accumulate_grad_batches=accumulate_batches,
+        profiler=profiler if profiler else None,
+        overfit_batches=1 if overfit_batches else 0
+    ) 
+
+trainer.fit(model, datamodule=data_module)
 
     
