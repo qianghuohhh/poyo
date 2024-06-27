@@ -4,6 +4,7 @@ import torch
 import collections
 from poyo.data import Data,Dataset,collate
 from poyo.models import POYOTokenizer
+from poyo.transforms import UnitDropout,Compose
 import torch_optimizer as optim
 from torch.utils.data import DataLoader
 from poyo.data.sampler import RandomFixedWindowSampler,SequentialFixedWindowSampler
@@ -49,11 +50,13 @@ class POYODataLoader(pl.LightningDataModule):
             using_memory_efficient_attn=self.using_memory_efficient_attn,
             eval=False if split=="train" else True
             )
+        unit_dropout = UnitDropout()
+        compose = Compose([unit_dropout,tokenizer])
         dataset=Dataset(
             root=self.root,
             split=split,
             include=self.include,
-            transform=tokenizer,
+            transform=compose if split=="train" else tokenizer,
         )
         if self.sampler_random:
             sampler=RandomFixedWindowSampler(

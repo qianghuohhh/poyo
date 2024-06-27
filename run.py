@@ -70,7 +70,7 @@ data_module = POYODataLoader(
         include = [{
                 "selection":[{
                         "dandiset":'processed/',
-                        "session": "c_20160921_center_out_reaching"
+                        "session": "c_20161013_center_out_reaching"
                 }],
         }],
         unit_tokenizer = model.model.unit_tokenizer,
@@ -102,8 +102,8 @@ trainer = pl.Trainer(
         strategy=DDPStrategy(find_unused_parameters=True) if is_distributed else default_strat,
         gradient_clip_val=gradient_clip_val,
         #accumulate_grad_batches=accumulate_batches,
-        profiler=profiler if profiler else None,
-        overfit_batches=1 if overfit_batches else 0
+        #profiler=profiler if profiler else None,
+        #overfit_batches=1 if overfit_batches else 0
     ) 
 
 trainer.fit(model, datamodule=data_module)
