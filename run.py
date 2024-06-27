@@ -35,10 +35,11 @@ torch.backends.cuda.enable_math_sdp(True) """
 os.environ["WANDB_API_KEY"] = 'eb9f8bffb20b4fbb7550ae857caad45673e6ebb8'
 pl.seed_everything(seed=0)
 wandb_project="poyo"
-epochs=1000
+epochs=400
 max_steps=1000000000
 log_every_n_steps=1
 half_precision=True
+use_memory_efficient_attn=False
 default_root_dir=Path("./data/runs").resolve()
 gradient_clip_val=1.0
 #accumulate_batches=2
@@ -62,7 +63,7 @@ model=POYOInterface(
         lin_dropout=0.3,
         atn_dropout=0.3,
         emb_init_scale=0.02,
-        use_memory_efficient_attn=False,
+        use_memory_efficient_attn=use_memory_efficient_attn,
 ).to(device)
 
 data_module = POYODataLoader(
@@ -75,10 +76,10 @@ data_module = POYODataLoader(
         }],
         unit_tokenizer = model.model.unit_tokenizer,
         session_tokenizer = model.model.session_tokenizer,
-        latent_step = 128,
-        num_latents_per_step = 128,
+        latent_step = 0.1,
+        num_latents_per_step = 64,
         batch_size = 128 * torch.cuda.device_count(),
-        using_memory_efficient_attn=False,
+        using_memory_efficient_attn=use_memory_efficient_attn,
 )
 
 callbacks=[]
