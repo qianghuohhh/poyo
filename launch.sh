@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH -J ndt2_lu_try2
 #SBATCH -o slurm_logs/%j.out
-#SBATCH -p q_ai4
+#SBATCH -p q_gpu_c
 #SBATCH -n 1
 #SBATCH --cpus-per-task 4
 #SBATCH --gres=gpu:1

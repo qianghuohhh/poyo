@@ -7,6 +7,7 @@ from poyo.data import Data,Dataset,collate
 from poyo.models import POYO,POYOTokenizer
 import torch_optimizer as optim
 from torch.utils.data import DataLoader
+from torch.optim.lr_scheduler import CosineAnnealingLR, CosineAnnealingWarmRestarts
 from poyo.data.sampler import RandomFixedWindowSampler,SequentialFixedWindowSampler
 import pytorch_lightning as pl
 
@@ -17,6 +18,7 @@ class POYOInterface(pl.LightningModule):
     def __init__(
         self,
         *,
+        epochs,
         dim=512,
         dim_head=64,
         num_latents=64,
@@ -31,6 +33,7 @@ class POYOInterface(pl.LightningModule):
     ):
         super().__init__() # store cfg
         self.save_hyperparameters(logger=False)
+        self.max_epochs=epochs
         self.model = POYO(
             dim=dim,
             dim_head=dim_head,
@@ -89,8 +92,9 @@ class POYOInterface(pl.LightningModule):
         return output
 
     def configure_optimizers(self):
-        optimizer = optim.Lamb(self.parameters(), lr=1e-4,weight_decay=1e-4)
-        return optimizer
+        optimizer = optim.Lamb(self.parameters(), lr=4e-3,weight_decay=1e-4)
+        self.scheduler = CosineAnnealingLR(optimizer, T_max=0.25*self.max_epochs, eta_min=0)
+        return optimizer #[optimizer],[scheduler]
 
     def common_log(self, metrics, prefix='', **kwargs):
         for m in metrics:
@@ -108,6 +112,8 @@ class POYOInterface(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         output = self(batch)
         self.common_log(output, prefix='train')
+        if self.trainer.is_last_batch and self.trainer.current_epoch > 0.75*self.max_epochs:
+            self.scheduler.step()
         return output["loss"]
 
     def validation_step(self, batch, batch_idx):
