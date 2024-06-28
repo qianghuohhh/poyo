@@ -35,7 +35,7 @@ torch.backends.cuda.enable_math_sdp(True) """
 os.environ["WANDB_API_KEY"] = 'eb9f8bffb20b4fbb7550ae857caad45673e6ebb8'
 pl.seed_everything(seed=0)
 wandb_project="poyo"
-epochs=400
+epochs=1000
 max_steps=1000000000
 log_every_n_steps=1
 half_precision=True
@@ -76,7 +76,7 @@ data_module = POYODataLoader(
         }],
         unit_tokenizer = model.model.unit_tokenizer,
         session_tokenizer = model.model.session_tokenizer,
-        latent_step = 0.1,
+        latent_step = 0.125,
         num_latents_per_step = 64,
         batch_size = 128 * torch.cuda.device_count(),
         using_memory_efficient_attn=use_memory_efficient_attn,
@@ -85,6 +85,16 @@ data_module = POYODataLoader(
 callbacks=[]
 lr_monitor = LearningRateMonitor(logging_interval='step')
 callbacks.append(lr_monitor)
+
+callbacks.append(ModelCheckpoint(
+                    monitor='valid_loss',
+                    filename='valid_loss' + '-{epoch:02d}-{valid_loss' + ':.4f}',
+                    save_top_k=1,
+                    mode='min',
+                    every_n_epochs=1,
+                    # every_n_train_steps=cfg.train.val_check_interval,
+                    dirpath=None
+                ))
 
 trainer = pl.Trainer(
         logger=wandb_logger,

@@ -58,7 +58,7 @@ class POYODataLoader(pl.LightningDataModule):
             include=self.include,
             transform=compose if split=="train" else tokenizer,
         )
-        if self.sampler_random:
+        if split=="train":#self.sampler_random:
             sampler=RandomFixedWindowSampler(
                 interval_dict=dataset.get_sampling_intervals(),
                 window_length=self.window_length,

@@ -259,7 +259,6 @@ class POYOTokenizer:
         subtask_weight_map = np.ones(num_subtasks, dtype=np.float32)
         for subtask, subtask_weight in subtask_weights.items():
             subtask_weight_map[Task.from_string(subtask).value] = subtask_weight
-        subtask_weight_map[1] = 5.0 #l
         subtask_weight_map[2] = 5.0 #l           
         subtask_weight_map[3] = 5.0 #l
         subtask_weight_map *= weight
