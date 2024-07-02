@@ -189,6 +189,8 @@ class SequentialFixedWindowSampler(torch.utils.data.Sampler):
                         DatasetIndex(session_name, end - self.window_length, end)
                     )
 
+        print(indices)
+
         return indices
 
     def __len__(self):

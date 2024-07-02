@@ -20,6 +20,7 @@ from pytorch_lightning.callbacks import (
 
 from model import POYOInterface
 from poyo.data.sampler import RandomFixedWindowSampler,SequentialFixedWindowSampler
+from poyo.utils import seed_everything
 
 if torch.cuda.is_available():
         device = torch.device("cuda")
@@ -33,12 +34,14 @@ torch.backends.cuda.enable_flash_sdp(False)
 torch.backends.cuda.enable_math_sdp(True) """
 
 os.environ["WANDB_API_KEY"] = 'eb9f8bffb20b4fbb7550ae857caad45673e6ebb8'
-pl.seed_everything(seed=0)
+
+seed_everything(1234)
+
 wandb_project="poyo"
 epochs=1000
 max_steps=1000000000
 log_every_n_steps=1
-half_precision=True
+half_precision=False #True
 use_memory_efficient_attn=False
 default_root_dir=Path("./data/runs").resolve()
 gradient_clip_val=1.0
@@ -77,13 +80,13 @@ data_module = POYODataLoader(
         unit_tokenizer = model.model.unit_tokenizer,
         session_tokenizer = model.model.session_tokenizer,
         latent_step = 0.125,
-        num_latents_per_step = 64,
+        num_latents_per_step = 32,
         batch_size = 128 * torch.cuda.device_count(),
         using_memory_efficient_attn=use_memory_efficient_attn,
 )
 
 callbacks=[]
-lr_monitor = LearningRateMonitor(logging_interval='step')
+lr_monitor = LearningRateMonitor(logging_interval='epoch')
 callbacks.append(lr_monitor)
 
 callbacks.append(ModelCheckpoint(
@@ -111,7 +114,7 @@ trainer = pl.Trainer(
         # track_grad_norm=2 if cfg.train.log_grad else -1, # this is quite cluttered, but probably better that way. See https://github.com/Lightning-AI/lightning/issues/1462#issuecomment-1190253742 for patch if needed, though.
         precision=16 if half_precision else 32,
         strategy=DDPStrategy(find_unused_parameters=True) if is_distributed else default_strat,
-        gradient_clip_val=gradient_clip_val,
+        #gradient_clip_val=gradient_clip_val,
         #accumulate_grad_batches=accumulate_batches,
         #profiler=profiler if profiler else None,
         #overfit_batches=1 if overfit_batches else 0

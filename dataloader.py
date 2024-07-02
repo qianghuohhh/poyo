@@ -21,6 +21,7 @@ class POYODataLoader(pl.LightningDataModule):
         num_latents_per_step,
         batch_size=128,
         window_length=1.0,
+        step=None,
         generator=None,
         sampler_random: bool = True,
         using_memory_efficient_attn: bool = True,
@@ -34,6 +35,7 @@ class POYODataLoader(pl.LightningDataModule):
         self.num_latents_per_step = num_latents_per_step
         self.batch_size=batch_size
         self.window_length = window_length
+        self.step = step
         self.generator = generator
         self.sampler_random = sampler_random
         self.using_memory_efficient_attn = using_memory_efficient_attn
@@ -50,7 +52,13 @@ class POYODataLoader(pl.LightningDataModule):
             using_memory_efficient_attn=self.using_memory_efficient_attn,
             eval=False if split=="train" else True
             )
-        unit_dropout = UnitDropout()
+        unit_dropout = UnitDropout(
+            min_units=30,
+            mode_units=100,
+            max_units=300,
+            peak=4,
+            M=10,
+            max_attempts=100)
         compose = Compose([unit_dropout,tokenizer])
         dataset=Dataset(
             root=self.root,
@@ -63,11 +71,13 @@ class POYODataLoader(pl.LightningDataModule):
                 interval_dict=dataset.get_sampling_intervals(),
                 window_length=self.window_length,
                 generator=self.generator,
+                #drop_short=False
             )
         else:
             sampler=SequentialFixedWindowSampler(
                 interval_dict=dataset.get_sampling_intervals(),
                 window_length=self.window_length,
+                step=self.step
             )
         dataloader=DataLoader(
             dataset=dataset,

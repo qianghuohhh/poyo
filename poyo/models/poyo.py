@@ -6,6 +6,7 @@ import torch
 import torch.nn as nn
 from torchtyping import TensorType
 from sklearn.metrics import r2_score
+from einops import repeat, rearrange
 from poyo.nn import (
     Embedding,
     InfiniteVocabEmbedding,
@@ -131,7 +132,13 @@ class POYO(nn.Module):
             loss = compute_loss_or_metric(
                 "mse", OutputType.CONTINUOUS, output_pred, output_values.float(), output_weights
             )
-            R2 = r2_score(output_values.float().detach().cpu(), output_pred.float().detach().cpu(), multioutput='raw_values')
+            #R2 = r2_score(output_values.float().detach().cpu(), output_pred.float().detach().cpu(), multioutput='raw_values')
+            R2 = compute_loss_or_metric(
+                "r2", OutputType.CONTINUOUS, 
+                output_pred.detach().cpu(),
+                output_values.float().detach().cpu(),
+                output_weights,
+            )
         else:
             assert output_mask is not None
             loss = compute_loss_or_metric(
@@ -141,9 +148,15 @@ class POYO(nn.Module):
                 output_values.float(),
                 output_weights,
             )
-            R2 = r2_score(output_values.float().detach().cpu(), output_pred[output_mask].float().detach().cpu(), multioutput='raw_values')
+            #R2 = r2_score(output_values.float().detach().cpu(), output_pred[output_mask].float().detach().cpu(), multioutput='raw_values')
+            R2 = compute_loss_or_metric(
+                "r2", OutputType.CONTINUOUS, 
+                output_pred[output_mask].detach().cpu(),
+                output_values.float().detach().cpu(),
+                output_weights,
+            )
 
-        output = []
+        '''output = []
         if self.using_memory_efficient_attn:
             batch_size = output_batch_index.max().item() + 1
             for i in range(batch_size):
@@ -151,9 +164,19 @@ class POYO(nn.Module):
         else:
             batch_size = output_latents.shape[0]
             for i in range(batch_size):
-                output.append(output_pred[i, output_mask[i]])#l
+                output.append(output_pred[i, output_mask[i]])#l'''
+
+        output = output_pred[output_mask]
 
         return output, loss, R2
+
+    '''def unit_tokenizer(self,unit_ids):
+        self.unit_emb.extend_vocab(list(unit_ids),exist_ok=True)
+        return self.unit_emb.tokenizer(list(unit_ids))'''
+
+    '''def session_tokenizer(self,session_id):
+        self.session_emb.extend_vocab([session_id],exist_ok=True)
+        return self.session_emb.tokenizer(session_id)'''
 
     def unit_tokenizer(self,unit_ids):
         initialize_vocab=[]
@@ -161,16 +184,16 @@ class POYO(nn.Module):
             if not self.unit_tokenizer_map[unit_id]:
                 self.unit_tokenizer_map[unit_id]=self.unit_tokenizer_var
                 self.unit_tokenizer_var += 1
-                initialize_vocab.append(self.unit_tokenizer_map[unit_id])
+                initialize_vocab.append(unit_id)
         self.unit_emb.extend_vocab(initialize_vocab)
-        return np.array([self.unit_tokenizer_map[unit_id] for unit_id in unit_ids])
+        return np.array(self.unit_emb.tokenizer(list(unit_ids)))
 
     def session_tokenizer(self,session_id):
         if not self.session_tokenizer_map[session_id]:
             self.session_tokenizer_map[session_id]=self.session_tokenizer_var
             self.session_tokenizer_var += 1
-            self.session_emb.extend_vocab([self.session_tokenizer_map[session_id]])
-        return self.session_tokenizer_map[session_id]
+            self.session_emb.extend_vocab([session_id])
+        return self.session_emb.tokenizer(session_id)
 
 
 class POYOTokenizer:
@@ -259,10 +282,20 @@ class POYOTokenizer:
         subtask_weight_map = np.ones(num_subtasks, dtype=np.float32)
         for subtask, subtask_weight in subtask_weights.items():
             subtask_weight_map[Task.from_string(subtask).value] = subtask_weight
-        subtask_weight_map[2] = 5.0 #l           
-        subtask_weight_map[3] = 5.0 #l
+        #subtask_weight_map[0] = 5.0 #l
+        #subtask_weight_map[1] = 5.0 #l
+        subtask_weight_map[2] = 5.0 #l
+        #subtask_weight_map[3] = 5.0 #l
+        #subtask_weight_map[4] = 5.0 #l  
+        #subtask_weight_map[5] = 5.0 #l          
         subtask_weight_map *= weight
         output_weights = subtask_weight_map[output_subtask_index]
+
+        if self.eval:
+            output_timestamps = output_timestamps[(output_subtask_index>=2)&(output_subtask_index<=2)]
+            output_values = output_values[(output_subtask_index>=2)&(output_subtask_index<=2)]
+            output_weights = output_weights[(output_subtask_index>=2)&(output_subtask_index<=2)]
+            output_subtask_index = output_subtask_index[(output_subtask_index>=2)&(output_subtask_index<=2)]
 
         if not self.using_memory_efficient_attn:
             # Padding

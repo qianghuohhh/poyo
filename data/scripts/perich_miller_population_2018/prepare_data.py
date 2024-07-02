@@ -7,6 +7,10 @@ import logging
 import numpy as np
 from pynwb import NWBHDF5IO
 from scipy.ndimage import binary_dilation, binary_erosion
+from einops import rearrange, repeat
+
+
+from sklearn.preprocessing import StandardScaler
 
 from poyo.data import Data, IrregularTimeSeries, Interval, DatasetBuilder
 from poyo.data.dandi_utils import extract_spikes_from_nwbfile, extract_subject_from_nwb
@@ -60,7 +64,11 @@ def extract_behavior(nwbfile, trials, task):
     cursor_acc = nwbfile.processing["behavior"]["Acceleration"]["cursor_acc"].data[:]
 
     # normalization
-    cursor_vel = cursor_vel / 20.0
+
+    #cursor_vel = cursor_vel / 20.0
+
+    #scaler = StandardScaler()#l
+    #cursor_vel = scaler.fit_transform(cursor_vel)#l
 
     # create a behavior type segmentation mask
     subtask_index = np.ones_like(timestamps, dtype=np.int64) * int(Task.REACHING.RANDOM)
@@ -144,6 +152,90 @@ def main():
         "per session, cursor position and velocity, and other task related metadata.",
     )
 
+    db1 = DatasetBuilder(
+        raw_folder_path=args.input_dir,
+        processed_folder_path=args.output_dir,
+        # metadata for the dataset
+        experiment_name="perich_miller_population_2018",
+        origin_version="dandi/000688/draft",
+        derived_version="1.0.0",
+        source="https://dandiarchive.org/dandiset/000688",
+        description="This dataset contains electrophysiology and behavioral data from "
+        "three macaques performing either a center-out task or a continuous random "
+        "target acquisition task. Neural activity was recorded from "
+        "chronically-implanted electrode arrays in the primary motor cortex (M1) or "
+        "dorsal premotor cortex (PMd) of four rhesus macaque monkeys. A subset of "
+        "sessions includes recordings from both regions simultaneously. The data "
+        "contains spiking activity—manually spike sorted in three subjects, and "
+        "threshold crossings in the fourth subject—obtained from up to 192 electrodes "
+        "per session, cursor position and velocity, and other task related metadata.",
+    )
+
+    global_vel = []
+    global_vel_max_len = 0
+    for file_path in find_files_by_extension(db1.raw_folder_path, ".nwb"):
+        with db1.new_session() as session:
+            # open file
+            io = NWBHDF5IO(file_path, "r")
+            nwbfile = io.read()
+
+            # extract subject metadata
+            # this dataset is from dandi, which has structured subject metadata, so we
+            # can use the helper function extract_subject_from_nwb
+            subject = extract_subject_from_nwb(nwbfile)
+            session.register_subject(subject)
+
+            # extract experiment metadata
+            recording_date = nwbfile.session_start_time.strftime("%Y%m%d")
+            sortset_id = f"{subject.id}_{recording_date}"
+            task = (
+                "center_out_reaching" if "CO" in file_path else "random_target_reaching"
+            )
+            session_id = f"{sortset_id}_{task}"
+
+            # register session
+            session.register_session(
+                id=session_id,
+                recording_date=datetime.datetime.strptime(recording_date, "%Y%m%d"),
+                task=Task.REACHING,
+            )
+
+            # extract spiking activity
+            # this data is from dandi, we can use our helper function
+            spikes, units = extract_spikes_from_nwbfile(
+                nwbfile, recording_tech=RecordingTech.UTAH_ARRAY_SPIKES
+            )
+
+            # register sortset
+            session.register_sortset(
+                id=sortset_id,
+                units=units,
+            )
+
+            trials = extract_trials(nwbfile, task)
+
+            # extract behavior
+            cursor = extract_behavior(nwbfile, trials, task)
+            global_vel.append(cursor.vel)
+            global_vel_max_len=max(global_vel_max_len,len(cursor.vel))
+            io.close()
+            data = Data(
+                # neural activity
+                spikes=spikes,
+                units=units,
+                # stimuli and behavior
+                trials=trials,
+                cursor=cursor,
+                # domain
+                domain=cursor.domain,
+            )
+
+            session.register_data(data)
+    global_vel = np.concatenate(global_vel,axis=0)
+    scaler = StandardScaler()#l
+    global_vel_fill = scaler.fit_transform(global_val)#l
+
+
     # iterate over the .nwb files and extract the data from each
     for file_path in find_files_by_extension(db.raw_folder_path, ".nwb"):
         logging.info(f"Processing file: {file_path}")
@@ -193,6 +285,8 @@ def main():
 
             # extract behavior
             cursor = extract_behavior(nwbfile, trials, task)
+
+            cursor.vel=scaler.transform(cursor.vel)
 
             # close file
             io.close()

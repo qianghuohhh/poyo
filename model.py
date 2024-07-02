@@ -10,6 +10,13 @@ from torch.utils.data import DataLoader
 from torch.optim.lr_scheduler import CosineAnnealingLR, CosineAnnealingWarmRestarts
 from poyo.data.sampler import RandomFixedWindowSampler,SequentialFixedWindowSampler
 import pytorch_lightning as pl
+from poyo.nn import (
+    Embedding,
+    InfiniteVocabEmbedding,
+    PerceiverRotary,
+    compute_loss_or_metric,
+)
+from poyo.taxonomy import Task, REACHING, OutputType
 
 class POYOInterface(pl.LightningModule):
     r"""
@@ -47,6 +54,8 @@ class POYOInterface(pl.LightningModule):
             emb_init_scale=emb_init_scale,
             use_memory_efficient_attn=use_memory_efficient_attn,
         )
+        self.pred=[]
+        self.value=[]
         self.use_memory_efficient_attn=use_memory_efficient_attn
 
     def forward(self, batch: Dict[str, torch.Tensor]) -> torch.Tensor:
@@ -92,7 +101,7 @@ class POYOInterface(pl.LightningModule):
         return output
 
     def configure_optimizers(self):
-        optimizer = optim.Lamb(self.parameters(), lr=4e-3,weight_decay=1e-4)
+        optimizer = optim.Lamb(self.parameters(), lr=4e-3,weight_decay=1e-4,eps=1e-8)
         self.scheduler = CosineAnnealingLR(optimizer, T_max=0.25*self.max_epochs, eta_min=0)
         return optimizer #[optimizer],[scheduler]
 
@@ -101,9 +110,9 @@ class POYOInterface(pl.LightningModule):
             if m == "value":
                 continue
             if m == "R2":
-                labels = ['x', 'y', 'z']
+                '''labels = ['x', 'y', 'z']
                 for i, r2 in enumerate(metrics[m]):
-                    self.log(f'{prefix}_{m}_{labels[i]}', r2, **kwargs)
+                    self.log(f'{prefix}_{m}_{labels[i]}', r2, **kwargs)'''
                 self.log(f'{prefix}_{m}', metrics[m].mean(), **kwargs)
             else:
                 self.log(f'{prefix}_{m}', metrics[m], **kwargs)
@@ -118,7 +127,27 @@ class POYOInterface(pl.LightningModule):
 
     def validation_step(self, batch, batch_idx):
         output = self(batch)
+        self.pred.append(torch.Tensor(output["value"]))
+        self.value.append(batch["output_values"])
         self.common_log(output, prefix='valid')
+
+    def on_validation_epoch_end(self):
+        index_flag=0
+        output_pred = torch.cat(self.pred,dim=0)
+        output_values = torch.cat(self.value,dim=0)
+        self.pred=[]
+        self.value=[]
+        R2 = compute_loss_or_metric(
+            "r2", OutputType.CONTINUOUS, 
+            output_pred.detach().cpu(),
+            output_values.float().detach().cpu(),
+            weights=None
+        )
+        output={
+            "R2":R2
+        }
+        self.common_log(output, prefix='valid+sum')
+
 
     def test_step(self, batch, batch_idx):
         output = self(batch)

@@ -6,6 +6,8 @@ import numpy as np
 
 from poyo.utils import logging
 
+import pytorch_lightning as pl
+
 log = logging(header='RANDOM SEED', header_color='red')
 
 
@@ -18,9 +20,11 @@ def seed_everything(seed: int) -> None:
         log.info("Global seed set to {}.".format(seed))
 
         torch.manual_seed(seed)
+        torch.cuda.manual_seed(seed)
         torch.cuda.manual_seed_all(seed)
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False
         np.random.seed(seed)
         random.seed(seed)
+        pl.seed_everything(seed)
         os.environ['PYTHONHASHSEED'] = str(seed)
